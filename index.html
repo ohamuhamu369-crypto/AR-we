@@ -4,44 +4,19 @@
 <meta charset="utf-8">
 <meta name="viewport"
       content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>トモコレ風AR 最小プロトタイプ</title>
+<title>WebAR 動作確認</title>
 
 <!--
 ========================================================================
-  動作要件
-------------------------------------------------------------------------
-  1. HTTPS で配信すること(http:// では iOS/Android ともカメラ起動不可)
-     最短ルート: GitHub Pages / Netlify / Cloudflare Pages
-  2. iOS Safari 11+ / Android Chrome 最新版
-  3. カメラ使用許可をOKする
-  4. iOSは「タップ起動」が必須(autoplay制限のため、開始ボタンを経由する)
+  Step 1 動作確認用 (iOS Safari対応版)
+  -----------------------------------------------------------------------
+  - ページを開いた瞬間にカメラ許可ダイアログが出る方式
+  - スタートボタン経由だとiOSがカメラ要求を拒否することがあるため変更
+  - assets/ フォルダもファイルも不要
+  - Hiroマーカーをかざすとピンクの回転キューブが表示される
 
-  ファイル構成
-------------------------------------------------------------------------
-  index.html             ← このファイル
-  assets/
-    character.glb        ← Blenderから書き出すキャラ(後述)
-    voice.mp3            ← VOICEVOXまたはPython生成のセリフ音声
-    marker.patt          ← AR.js Marker Trainingで生成(任意)
-
-  Blenderからの書き出し手順
-------------------------------------------------------------------------
-  1. キャラ + アーマチュア + アニメーション(Action)を用意
-  2. File > Export > glTF 2.0 (.glb)
-  3. 設定:
-     - Format: glTF Binary (.glb)
-     - Include: Selected Objects (or 必要なものだけ)
-     - Transform: +Y Up
-     - Geometry: Apply Modifiers ON / UVs ON / Normals ON
-     - Animation: Animation ON / Use Current Frame OFF
-       - Sampling Rate: 1〜2(軽量化)
-   ※ サイズの目安: 1MB以下が理想。
-     ポリゴン < 5,000、テクスチャ 512x512 まで圧縮するとモバイルで快適。
-
-  マーカーについて
-------------------------------------------------------------------------
-  最初は preset="hiro" で動作確認 → 慣れたらカスタムpattに差し替え。
-  カスタム生成: https://jeromeetienne.github.io/AR.js/three.js/examples/marker-training/examples/generator.html
+  Hiroマーカー画像:
+  https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png
 ========================================================================
 -->
 
@@ -55,182 +30,78 @@
               background: rgba(0,0,0,.55); padding: 6px 10px; border-radius: 6px;
               font-size: 12px; line-height: 1.5; pointer-events: none; }
   #hud b    { color: #ffe66d; }
-  #loader   { position: fixed; inset: 0; background: #111; z-index: 9999; color: #fff;
-              display: flex; align-items: center; justify-content: center; text-align: center;
-              padding: 24px; }
-  #startBtn { margin-top: 24px; padding: 14px 28px; background: #ff6b9d; color: #fff;
-              border: 0; border-radius: 10px; font-size: 16px; font-weight: bold; }
-  #subtitle { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
-              z-index: 10; color: #fff; background: rgba(0,0,0,.7); padding: 10px 18px;
-              border-radius: 8px; font-size: 14px; max-width: 80%; text-align: center;
-              display: none; }
+  #info     { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+              z-index: 10; color: #fff; background: rgba(0,0,0,.7);
+              padding: 8px 14px; border-radius: 6px; font-size: 12px;
+              max-width: 80%; text-align: center; pointer-events: none; }
 </style>
 </head>
 
 <body>
 
-<!-- 起動ゲート: iOSの音声autoplay制限を解除するため、ここでユーザータップを取る -->
-<div id="loader">
-  <div>
-    <div style="font-size:18px">📱 AR体験を開始</div>
-    <div style="margin-top:10px;font-size:12px;opacity:.7">
-      タップ後、カメラ許可を「許可」<br>
-      マーカーをかざすとキャラが現れます
-    </div>
-    <button id="startBtn">スタート</button>
-  </div>
-</div>
-
-<div id="hud">FPS: <b id="fps">--</b> / 状態: <b id="state">待機中</b></div>
-<div id="subtitle"></div>
+<div id="hud">FPS: <b id="fps">--</b> / 状態: <b id="state">起動中</b></div>
+<div id="info">Hiroマーカーをかざしてください</div>
 
 <a-scene
     id="scene"
     vr-mode-ui="enabled: false"
     loading-screen="enabled: false"
     embedded
-    renderer="antialias: false;
-              precision: mediump;
-              alpha: true;
-              logarithmicDepthBuffer: false"
+    renderer="antialias: false; precision: mediump; alpha: true"
     arjs="sourceType: webcam;
           sourceWidth: 640;  sourceHeight: 480;
           displayWidth: 640; displayHeight: 480;
           debugUIEnabled: false;
           detectionMode: mono_and_matrix;
           matrixCodeType: 3x3;
-          maxDetectionRate: 30;
-          trackingMethod: best;">
+          maxDetectionRate: 30;">
 
-  <a-assets timeout="15000">
-    <!-- Blenderから書き出した GLB -->
-    <a-asset-item id="characterModel" src="assets/character.glb"></a-asset-item>
-
-    <!-- 音声(MP3を推奨: iOSで一番安定) -->
-    <audio id="voice" src="assets/voice.mp3" preload="auto"></audio>
-  </a-assets>
-
-  <!-- マーカー(動作確認はpreset="hiro"、本番はtype="pattern" url="..." に差し替え) -->
   <a-marker preset="hiro" id="marker" emitevents="true"
-            smooth="true" smoothCount="5"
-            smoothTolerance="0.01" smoothThreshold="2">
+            smooth="true" smoothCount="5">
 
-    <!-- キャラ本体: 出現時にフェードイン+少し浮く演出 -->
-    <a-entity id="character"
-              gltf-model="#characterModel"
-              position="0 0 0"
-              rotation="0 0 0"
-              scale="0.5 0.5 0.5"
-              visible="false">
-    </a-entity>
+    <a-box position="0 0.5 0"
+           scale="1 1 1"
+           material="color: #ff6b9d; shader: flat;
+                     emissive: #ff6b9d; emissiveIntensity: 0.4"
+           animation="property: rotation;
+                      to: 0 360 0;
+                      loop: true;
+                      dur: 4000;
+                      easing: linear">
+    </a-box>
+
+    <a-box position="0 1.3 0"
+           scale="0.3 0.3 0.3"
+           material="color: #ffe66d; shader: flat">
+    </a-box>
   </a-marker>
 
   <a-entity camera></a-entity>
 </a-scene>
 
 <script>
-// =====================================================================
-// 開始ゲート: iOSのautoplay制限解除のため必須
-// =====================================================================
-const loader = document.getElementById('loader');
-const audio  = document.getElementById('voice');
-let userInteracted = false;
+const marker = document.getElementById('marker');
+const stateElem = document.getElementById('state');
+const infoElem = document.getElementById('info');
 
-document.getElementById('startBtn').addEventListener('click', () => {
-  // iOSのaudio autoplay制限を「ユーザー操作経由でplay()→即pause()」で解除
-  audio.play().then(() => audio.pause()).catch(() => {});
-  audio.currentTime = 0;
-  userInteracted = true;
-  loader.style.display = 'none';
+// シーン起動完了でHUD更新
+const scene = document.getElementById('scene');
+scene.addEventListener('loaded', () => {
+  stateElem.textContent = '探索中';
+  infoElem.textContent = 'Hiroマーカーをかざしてください';
 });
 
-// =====================================================================
-// マーカー検出 → キャラ出現 → 音声再生 → 終わったら自動で消す
-// =====================================================================
-const marker     = document.getElementById('marker');
-const character  = document.getElementById('character');
-const stateElem  = document.getElementById('state');
-const subtitle   = document.getElementById('subtitle');
-
-let isPlaying = false;     // 音声再生中フラグ(連打防止)
-let hasPlayed = false;     // 1回再生したら以後は出さない仕様にする場合に使用
-
-// マーカー検出時の処理
+// マーカー検出イベント
 marker.addEventListener('markerFound', () => {
   stateElem.textContent = 'マーカー検出';
-
-  // 既に再生済みなら何もしない(展示で「1回だけ」にする場合)
-  if (isPlaying || hasPlayed) return;
-  if (!userInteracted) return; // 音声ロックがまだ解除されてないとき
-
-  startCharacterSequence();
+  infoElem.textContent = '🎉 検出成功!';
 });
-
 marker.addEventListener('markerLost', () => {
   stateElem.textContent = '探索中';
+  infoElem.textContent = 'Hiroマーカーをかざしてください';
 });
 
-// 出現〜音声再生〜消失 までの一連のフロー
-function startCharacterSequence() {
-  isPlaying = true;
-  stateElem.textContent = '再生中';
-
-  // 1) キャラを表示(下から少し浮き上がるフェードイン)
-  character.setAttribute('visible', true);
-  character.setAttribute('animation__appear', {
-    property: 'position',
-    from: '0 -0.3 0',
-    to:   '0 0 0',
-    dur: 600,
-    easing: 'easeOutCubic'
-  });
-
-  // 2) 字幕を表示(任意 - 必要なければ削除可)
-  showSubtitle('ようこそ、冒険者よ……');
-
-  // 3) 音声を最初から1回だけ再生
-  audio.currentTime = 0;
-  audio.play().catch(err => {
-    console.warn('audio.play() blocked:', err);
-    // 失敗時もシーケンスは続ける(消す処理)
-    onVoiceEnded();
-  });
-}
-
-// 音声再生が終わったとき → キャラを消す
-audio.addEventListener('ended', onVoiceEnded);
-
-function onVoiceEnded() {
-  // 消える演出(フェードアウトしながら少し沈む)
-  character.setAttribute('animation__disappear', {
-    property: 'position',
-    from: '0 0 0',
-    to:   '0 -0.3 0',
-    dur: 500,
-    easing: 'easeInCubic'
-  });
-
-  // アニメ終了後に非表示
-  setTimeout(() => {
-    character.setAttribute('visible', false);
-    hideSubtitle();
-    isPlaying = false;
-    hasPlayed = true;          // ← この行を消すと「マーカー読むたびに何度でも」になる
-    stateElem.textContent = '完了';
-  }, 500);
-}
-
-function showSubtitle(text) {
-  subtitle.textContent = text;
-  subtitle.style.display = 'block';
-}
-function hideSubtitle() {
-  subtitle.style.display = 'none';
-}
-
-// =====================================================================
-// FPSモニタ(熱暴走の早期発見用)
-// =====================================================================
+// FPS表示
 const fpsElem = document.getElementById('fps');
 let frames = 0, lastT = performance.now();
 (function tick() {
@@ -242,16 +113,6 @@ let frames = 0, lastT = performance.now();
   }
   requestAnimationFrame(tick);
 })();
-
-// =====================================================================
-// バッテリー対策: 画面非表示時はシーンを止める
-// =====================================================================
-document.addEventListener('visibilitychange', () => {
-  const scene = document.getElementById('scene');
-  if (!scene) return;
-  if (document.hidden) { scene.pause(); audio.pause(); }
-  else                 { scene.play(); }
-});
 </script>
 </body>
 </html>
