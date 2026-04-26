@@ -4,11 +4,13 @@
 <meta charset="utf-8">
 <meta name="viewport"
       content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>WebAR 動作確認</title>
+<title>WebAR Step2 ブロッコリー表示</title>
 
 <!--
-  AR.js 公式デモと同じ最小構成
-  Hiroマーカー: https://raw.githubusercontent.com/AR-js-org/AR.js/master/data/images/hiro.png
+  Step 2: Blenderから書き出した character.glb を表示
+  サイズが大きすぎ/小さすぎる場合: scale属性の数値を変える
+    例: scale="0.5 0.5 0.5"  ← 半分のサイズ
+        scale="2 2 2"        ← 2倍のサイズ
 -->
 
 <script src="https://aframe.io/releases/1.5.0/aframe.min.js"></script>
@@ -34,15 +36,20 @@
     vr-mode-ui="enabled: false"
     renderer="logarithmicDepthBuffer: true;">
 
+  <!-- GLBモデルを事前ロード -->
+  <a-assets timeout="15000">
+    <a-asset-item id="characterModel" src="assets/character.glb"></a-asset-item>
+  </a-assets>
+
   <a-marker preset="hiro" id="marker">
-    <a-box position="0 0.5 0"
-           material="color: #ff6b9d; opacity: 0.9"
-           animation="property: rotation; to: 0 360 0; loop: true; dur: 4000; easing: linear">
-    </a-box>
-    <a-box position="0 1.3 0"
-           scale="0.3 0.3 0.3"
-           material="color: #ffe66d">
-    </a-box>
+    <!-- Blenderから出したブロッコリー -->
+    <a-entity
+        gltf-model="#characterModel"
+        position="0 0 0"
+        rotation="0 0 0"
+        scale="1 1 1"
+        animation="property: rotation; to: 0 360 0; loop: true; dur: 6000; easing: linear">
+    </a-entity>
   </a-marker>
 
   <a-entity camera></a-entity>
@@ -52,7 +59,6 @@
 const stateElem = document.getElementById('state');
 const marker = document.getElementById('marker');
 
-// マーカー検出イベント(これは標準のmarkerFound/Lostではなく、A-Frame経由で検出)
 marker.addEventListener('markerFound', () => {
   stateElem.textContent = '🎉 検出!';
 });
@@ -60,7 +66,6 @@ marker.addEventListener('markerLost', () => {
   stateElem.textContent = '探索中';
 });
 
-// シーン起動完了
 document.querySelector('a-scene').addEventListener('loaded', () => {
   stateElem.textContent = '探索中';
 });
